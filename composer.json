@@ -1,0 +1,24 @@
+{
+	"name": "phpf/view",
+	"type": "library",
+	"description": "Phpf View package",
+	"keywords": ["View", "Output", "Display"],
+	"homepage": "https://github.com/phpf/View",
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "The PHPf Developer",
+			"email": "wellspeterson@live.com"
+		}
+	],
+	"require": {
+		"php": ">=5.3",
+		"phpf/util": "dev-master"
+	},
+	"autoload": {
+		"psr-0": {
+			"Phpf\\View\\": "src/"
+		}
+	},
+	"minimum-stability": "dev"
+}
