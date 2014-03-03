@@ -2,7 +2,7 @@
 
 namespace Phpf\View\Asset;
 
-use Phpf\Util\Filesystem\Finder;
+use Phpf\Filesystem\Filesystem;
 use Phpf\Util\Path;
 use Closure;
 
@@ -20,12 +20,12 @@ class Manager {
 	
 	const LOCATION_BODY = 'body';
 	
-	public function __construct( Finder $finder ){
-		$this->finder = $finder;
+	public function __construct( Filesystem &$finder ){
+		$this->finder =& $finder;
 	}
 	
 	public function addDirectory( $asset_type, $path ){
-		$this->finder->registerDirectory($path, $asset_type);
+		$this->finder->add($path, 'assets');
 		return $this;
 	}
 	
@@ -114,34 +114,36 @@ class Manager {
 		
 		// Already a URL starting with "http" or "//" (like Google)
 		if ( 0 === strpos($name, 'http') || 0 === strpos($name, '//') ){
-			return $this->generateTag($type, $name);
+			return $this->generateTag($name);
 		}
 		
 		// extract file extension from $name
 		if ( false !== $pos = strrpos($name, '.') ){
-			$ext = substr($name, $pos);
+			$ext = substr($name, $pos); // .ext
 			$name = substr($name, 0, $pos);
 		} else {
-			$ext = $type;
+			$ext = '.'.$type;
 		}
 		
-		if ( $file = $this->finder->locateFile($name, $type, $ext) ){
+		if ( $file = $this->finder->locate($name.$ext, 'assets') ){
 			$url = \Phpf\Util\Path::url($file);
-			return $this->generateTag($type, $url);
+			return $this->generateTag($url);
 		}
 		
 		return null;
 	}
 	
-	protected function generateTag($type, $value){
+	protected function generateTag($value){
 		
-		if ( 'css' === $type ){
+		if ( \Phpf\Util\Str::endsWith($value, '.css') ){
 			return \Phpf\Util\Html::link($value);
 		} 
 		
-		if ( 'js' === $type ){
+		if ( \Phpf\Util\Str::endsWith($value, '.js') ){
 			return \Phpf\Util\Html::script($value);
 		}
+		
+		throw new \RuntimeException("No tag generator for '$value'");
 	}
 	
 }

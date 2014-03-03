@@ -7,7 +7,7 @@
 namespace Phpf\View;
 
 use Phpf\Util\DataContainer;
-use Phpf\Util\Filesystem\Finder;
+use Phpf\Filesystem\Filesystem;
 
 class Manager extends DataContainer {
 	
@@ -18,9 +18,9 @@ class Manager extends DataContainer {
 	/**
 	 * Construct manager with Finder and Parser (optional)
 	 */
-	public function __construct( Finder $finder, Parser\AbstractParser $parser = null ){
+	public function __construct( Filesystem &$finder, Parser\AbstractParser $parser = null ){
 			
-		$this->finder = $finder;
+		$this->finder =& $finder;
 		
 		if ( isset($parser) ){
 			$this->addParser($parser);
@@ -45,15 +45,15 @@ class Manager extends DataContainer {
 	 * Find and return a View.
 	 */
 	public function getView( $view, $type = 'php' ){
-			
-		$file = $this->finder->locateFile($view, 'views', $type);
-		
-		if ( !$file )
-			return null;
 		
 		if ( ! $parser = $this->getParser($type) ){
 			throw new \Exception("No parser for view type $type.");
 		}
+			
+		$file = $this->finder->locate($view.'.'.$type, 'views');
+		
+		if ( !$file )
+			return null;
 		
 		return new View($file, $parser, $this->getData());
 	}
