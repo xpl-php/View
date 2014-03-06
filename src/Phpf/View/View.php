@@ -2,14 +2,11 @@
 
 namespace Phpf\View;
 
-use Phpf\Util\DataContainer;
 use Phpf\View\Parser\AbstractParser;
 
-class View extends DataContainer {
+class View extends Part {
 	
-	public $file;
-		
-	protected $parser;
+	protected $manager;
 	
 	protected $attachment;
 	
@@ -18,32 +15,9 @@ class View extends DataContainer {
 	/**
 	 * Set the file, parser, and any initial data.
 	 */
-	public function __construct( $file, AbstractParser $parser, array $data = array() ){
-		
-		$this->file = $file;
-		$this->parser = $parser;
-		$this->setData($data);
-	}
-	
-	/**
-	 * Render the view, optionally in context of the object.
-	 */
-	public function render(){
-		
-		if ( $this->object_context ){
-			
-			ob_start();
-			
-			extract($this->data);
-			
-			require $this->file;
-			
-			return ob_get_clean();
-		
-		} else {
-		
-			return $this->parser->parse($this->file, $this->getData());
-		}
+	public function __construct( $file, AbstractParser $parser, Manager &$manager, array $data = array() ){
+		parent::__construct($file, $parser, $data);
+		$this->manager =& $manager;
 	}
 	
 	/**
@@ -51,7 +25,7 @@ class View extends DataContainer {
 	 */
 	public function inObjectContext( $val = null ){
 		
-		if ( empty($val) )
+		if ( ! isset($val) )
 			return $this->object_context;
 		
 		$this->object_context = (bool) $val;
@@ -64,7 +38,7 @@ class View extends DataContainer {
 	 */
 	public function attach( $object ){
 		
-		if ( !is_object($object) ){
+		if ( ! is_object($object) ){
 			throw new \InvalidArgumentException('Must pass object to attach() - ' . gettype($object) . ' given.');
 		}
 		
@@ -81,34 +55,59 @@ class View extends DataContainer {
 	}
 	
 	/**
-	 * Either:
-	 * 1. Echoes a data value string.
-	 * 2. Calls a method on attached object.
+	 * Render the view, optionally in context of the object.
 	 */
-	public function __call( $func, $args ){
+	public function render(){
 		
-		if ( $this->exists($func) ){
+		if ( $this->object_context && 'php' === $this->parser->getType() ){
 			
-			// $this->content() ==> echo $this->data['content']
-			if ( is_string($this->get($func)) && !is_callable($this->get($func)) ){
-				echo $this->get($func);
-				return;
-			}
+			extract($this->data);
 			
-			return call_user_func_array($this->get($func), $args);
-		}
+			ob_start();
+			
+			require $this->file;
+			
+			return ob_get_clean();
 		
-		if ( is_callable(array($this->attachment, $func)) ){
-				
-			return call_user_func_array(array($this->attachment, $func), $args);
+		} else {
+		
+			return $this->parser->parse($this->file, $this->getData());
 		}
 	}
 	
 	/**
-	 * Returns rendered view (string).
+	 * Does one of:
+	 * 1. If part() is called, renders given part.
+	 * 2. Calls a method on attached object.
+	 * 3. Calls a closure set as a property.
+	 * 4. Echoes a scalar property.
 	 */
-	public function __toString(){
-		return $this->render();
+	public function __call( $func, $args ){
+		
+		if ( 'part' === $func ){
+			$type = isset($args[1]) ? $args[1] : 'php';
+			return $this->manager->getPart($args[0], $type);
+		}
+		
+		if ( is_callable(array($this->attachment, $func)) ){
+			return call_user_func_array(array($this->attachment, $func), $args);
+		}
+		
+		if ( $this->exists($func) ){
+			
+			$prop = $this->get($func);
+			
+			// if Closure:
+			if ( is_callable($prop) ){
+				return call_user_func_array($prop, $args);
+			}
+			
+			if ( is_scalar($prop) ){
+				// $this->myscalar() ==> echo $this->data['myscalar']
+				echo $prop;
+				return;
+			}
+		}
 	}
 	
 }

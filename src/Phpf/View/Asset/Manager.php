@@ -57,17 +57,17 @@ class Manager {
 		return $this->add('js', $name, $location);
 	}
 	
+	public function in( $location, Closure $func ){
+		$this->actions[$location][] = $func;
+		return $this;
+	}
+	
 	public function head(){
 		return $this->assets(self::LOCATION_HEAD);
 	}
 	
 	public function body(){
 		return $this->assets(self::LOCATION_BODY);
-	}
-	
-	public function in( $location, Closure $func ){
-		$this->actions[$location][] = $func;
-		return $this;
 	}
 	
 	public function assets( $location, $type = null ){
@@ -79,19 +79,16 @@ class Manager {
 		
 		// do actions, which add assets
 		if ( !empty($this->actions[$location]) ){
-			
 			$this->working_loc = $location;
-			
 			foreach($this->actions[$location] as $exec){
 				$tags[] = $exec($this);	
 			}
-			
 			unset($this->working_loc);
 		}
 		
 		if ( $doCss && !empty($this->assets['css'][$location]) ){
 			foreach($this->assets['css'][$location] as $file){
-				if ( $tag = $this->getTag('css', $file) ){
+				if ( $tag = $this->getTag($file) ){
 					$tags[] = $tag;
 				}
 			}
@@ -99,7 +96,7 @@ class Manager {
 		
 		if ( $doJs && !empty($this->assets['js'][$location]) ){
 			foreach($this->assets['js'][$location] as $file){
-				if ( $tag = $this->getTag('js', $file) ){
+				if ( $tag = $this->getTag($file) ){
 					$tags[] = $tag;
 				}
 			}
@@ -108,7 +105,7 @@ class Manager {
 		return empty($tags) ? '' : implode("\n", $tags);
 	}
 	
-	public function getTag( $type, $name ){
+	public function getTag( $name, $type = null ){
 		
 		$output = '';
 		
@@ -117,13 +114,13 @@ class Manager {
 			return $this->generateTag($name);
 		}
 		
-		// extract file extension from $name
-		if ( false !== $pos = strrpos($name, '.') ){
+		if ( isset($type) ) {
+			$ext = '.'.$type;
+		} elseif ( false !== $pos = strrpos($name, '.') ){
+			// extract file extension from $name
 			$ext = substr($name, $pos); // .ext
 			$name = substr($name, 0, $pos);
-		} else {
-			$ext = '.'.$type;
-		}
+		} 
 		
 		if ( $file = $this->finder->locate($name.$ext, 'assets') ){
 			$url = \Phpf\Util\Path::url($file);
