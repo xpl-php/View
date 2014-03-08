@@ -59,6 +59,8 @@ class View extends Part {
 	 */
 	public function render(){
 		
+		$this->manager->trigger('view.render', array('view' => $this));
+		
 		if ( $this->object_context && 'php' === $this->parser->getType() ){
 			
 			extract($this->data);
@@ -108,6 +110,10 @@ class View extends Part {
 				return;
 			}
 		}
+		
+		$triggerArgs = array('function' => $func, 'args' => $args, 'view' => $this);
+		
+		return $this->manager->trigger('view.call', $triggerArgs);
 	}
 	
 }

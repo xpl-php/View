@@ -4,9 +4,9 @@ namespace Phpf\View\Asset;
 
 use Phpf\Filesystem\Filesystem;
 use Phpf\Util\Path;
-use Closure;
+use Phpf\Util\iManager;
 
-class Manager {
+class Manager implements iManager {
 	
 	protected $finder;
 	
@@ -22,6 +22,10 @@ class Manager {
 	
 	public function __construct( Filesystem &$finder ){
 		$this->finder =& $finder;
+	}
+	
+	final public function manages(){
+		return 'assets';
 	}
 	
 	public function addDirectory( $asset_type, $path ){
@@ -57,7 +61,7 @@ class Manager {
 		return $this->add('js', $name, $location);
 	}
 	
-	public function in( $location, Closure $func ){
+	public function in( $location, \Closure $func ){
 		$this->actions[$location][] = $func;
 		return $this;
 	}
