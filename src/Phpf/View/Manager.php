@@ -7,19 +7,26 @@
 namespace Phpf\View;
 
 use Phpf\Util\DataContainer;
-use Phpf\Filesystem\Filesystem;
 use Phpf\Util\iEventable;
 use Phpf\Util\iManager;
+use Phpf\Filesystem\Filesystem;
 
-class Manager extends DataContainer implements iEventable, iManager {
+class Manager extends DataContainer implements iEventable, iManager 
+{
 	
 	protected $filesystem;
+	
+	protected $events;
 	
 	protected $parsers = array();
 	
 	protected $defaults = array();
 	
 	protected $actions = array();
+	
+	protected $layout_regions = array();
+	
+	protected $layouts = array();
 	
 	/**
 	 * Construct manager with Finder and Parser (optional)
@@ -53,7 +60,7 @@ class Manager extends DataContainer implements iEventable, iManager {
 		$file = $this->filesystem->locate($view.'.'.$type, 'views');
 		
 		if ( ! $file ){
-			return $this->trigger('getView', array('name' => $view, 'type' => $type));
+			return null;
 		}
 		
 		return new View($file, $parser, $this, $this->getData());
@@ -67,10 +74,38 @@ class Manager extends DataContainer implements iEventable, iManager {
 		$file = $this->filesystem->locate($name.'.'.$type, 'view-parts');
 		
 		if ( ! $file ){
-			return $this->trigger('getPart', array('name' => $name, 'type' => $type));
+			return null;
 		}
 		
 		return new Part($file, $this->getParser($type), $this->getData());	
+	}
+	
+	public function getLayout( $name, $class = 'Phpf\View\Layout' ){
+		
+		if ( ! isset($this->layout_regions[$name]) ){
+			throw new \OutOfBoundsException("No defined layout with name '$name'.");
+		}
+		
+		if ($this->layouts[$name] instanceof Layout)
+			return $this->layouts[$name];
+		
+		$regions = $this->getLayoutRegions($name);
+		
+		return $this->layouts[$name] = new $class($name, $regions);
+	}
+	
+	public function addLayout( $name, array $regions ){
+		$this->layout_regions[$name] = $regions;
+		return $this;
+	}
+	
+	protected function getLayoutRegions( $name ){
+		
+		if ( ! isset($this->layout_regions[$name]) ){
+			throw new \OutOfBoundsException("No defined layout with name '$name'.");
+		}
+		
+		return $this->layout_regions[$name];
 	}
 	
 	/**
@@ -92,7 +127,7 @@ class Manager extends DataContainer implements iEventable, iManager {
 	 * Set a default value
 	 */
 	public function setDefault( $var, $val ){
-		$this->defaults[ $var ] = $val;
+		$this->defaults[$var] = $val;
 		return $this;
 	}
 	
@@ -109,9 +144,13 @@ class Manager extends DataContainer implements iEventable, iManager {
 	 */
 	public function getDefault( $var ){
 		
-		$default = isset($this->defaults[$var]) ? $this->defaults[$var] : null;                              
+		if ( ! isset($this->defaults[$var]) ){
+			return null;
+		}
 		
-		if ( $default instanceof \Closure){
+		$default = $this->defaults[$var];                              
+		
+		if ($default instanceof \Closure){
 			$default = $default($this);
 		}
 		
@@ -121,9 +160,13 @@ class Manager extends DataContainer implements iEventable, iManager {
 	/**
 	 * Adds a callback to perform on action.
 	 */
-	public function on( $action, \Closure $call ){
+	public function on( $action, $call ){
 		
-		$this->actions[$action][] = $call;
+		if ( isset($this->events) ){
+			$this->onEvent($action, $call);
+		} else {
+			$this->actions[$action][] = $call;
+		}
 		
 		return $this;
 	}
@@ -131,19 +174,42 @@ class Manager extends DataContainer implements iEventable, iManager {
 	/**
 	 * Triggers action callbacks.
 	 */
-	public function trigger( $action, array $args = array() ){
-			
-		$r = null;
+	public function trigger( $action, $view = null ) {
 		
-		if ( ! empty($this->actions[$action]) ){
-				
-			foreach($this->actions[$action] as $closure){
-					
-				$r = $closure($this, $args, $r);
+		if (isset($this->events)) {
+			return $this->triggerEvent($action, $view);
+		} 
+		
+		$return = array();
+		if (!empty($this->actions[$action])) {
+			foreach( $this->actions[$action] as $call ) {
+				$return[] = $call($this, $view, $return);
 			}
 		}
 		
-		return $r;
+		return $return;
 	}
 	
+	/**
+	 * Sets the Events library Container as a property.
+	 */
+	public function setEvents( \Phpf\Event\Container &$eventContainer ){
+		$this->events =& $eventContainer;
+		return $this;
+	}
+	
+	/**
+	 * Whether Event library is available.
+	 */
+	public function eventsAvailable(){
+		return isset($this->events);
+	}
+	
+	protected function onEvent($action, $callable) {
+		return $this->events->on($action, $callable);
+	}
+	
+	protected function triggerEvent($action, View $view) {
+		return $this->events->trigger($action, $view, $this);
+	}
 }
