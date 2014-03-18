@@ -41,6 +41,22 @@ class Manager extends DataContainer implements iEventable, iManager
 	}
 	
 	/**
+	 * Use assets
+	 */
+	public function useAssets(){
+			
+		if (! isset($this->assets)) {
+			$this->assets = new Assets();
+		}
+		
+		return $this;
+	}
+	
+	public function getAssets(){
+		return $this->assets;
+	}
+	
+	/**
 	 * Implement iManager
 	 * Manages 'views'
 	 */
