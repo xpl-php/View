@@ -2,47 +2,43 @@
 
 namespace Phpf\View;
 
-use Phpf\View\Parser\AbstractParser;
-
 class View extends Part
 {
-
-	protected $manager;
 
 	protected $attachment;
 
 	protected $object_context = true;
 
 	/**
-	 * Set the file, parser, and any initial data.
-	 */
-	public function __construct($file, AbstractParser $parser, Manager &$manager, array $data = array()) {
-		parent::__construct($file, $parser, $data);
-		$this->manager = &$manager;
-	}
-
-	/**
-	 * Render the view, optionally in context of the object.
+	 * Render the view, optionally in an object context.
+	 * 
+	 * Rendering in an object context allows for the use of "$this" in view files.
+	 * 
 	 * @return string Rendered view
 	 */
 	public function render() {
-
-		$this->manager->trigger('view.render', $this);
-
+		
+		// tell the manager we're rendering
+		$this->notify(); 
+		
 		if ($this->object_context && 'php' === $this->parser->getType()) {
-
-			extract($this->data);
-
+			extract($this->getAllData(), EXTR_REFS);
 			ob_start();
-
 			require $this->file;
-
 			return ob_get_clean();
-
 		} else {
-
-			return $this->parser->parse($this->file, $this->getData());
+			return $this->parser->parse($this->file, $this->getAllData());
 		}
+	}
+	
+	/**
+	 * Gets a Part from view manager.
+	 *
+	 * @param string $part Name of part
+	 * @param string $type Type of file
+	 */
+	public function part($part, $type = 'php') {
+		return $this->manager->getPart($part, $type);
 	}
 
 	/**
@@ -52,12 +48,10 @@ class View extends Part
 	 * @return bool|$this If no argument given, returns value, otherwise $this.
 	 */
 	public function inObjectContext($val = null) {
-
-		if (! isset($val))
+		if (! isset($val)) {
 			return $this->object_context;
-
+		}
 		$this->object_context = (bool)$val;
-
 		return $this;
 	}
 
@@ -66,17 +60,15 @@ class View extends Part
 	 *
 	 * Attached object methods will be available through View.
 	 *
-	 * @param object $object The object to attach to view
+	 * @param object $object The object to attach to view.
 	 * @return $this
+	 * @throws InvalidArgumentException if not passed an object.
 	 */
-	public function attach($object) {
-
+	public function setAttachment($object) {
 		if (! is_object($object)) {
 			throw new \InvalidArgumentException('Must pass object to attach() - '.gettype($object).' given.');
 		}
-
 		$this->attachment = $object;
-
 		return $this;
 	}
 
@@ -90,30 +82,24 @@ class View extends Part
 	}
 
 	/**
-	 * Gets a Part from view manager.
-	 *
-	 * @param string $part Name of part
-	 * @param string $type Type of file
-	 */
-	public function part($part, $type = 'php') {
-		return $this->manager->getPart($part, $type);
-	}
-
-	/**
 	 * Either:
 	 *	- calls a method of attached object
 	 * or
 	 * 	- calls a callable property, e.g. closure
+	 * 
+	 * @param string $func Class method called.
+	 * @param array $args Array of arguments passed to method.
+	 * @return mixed Results of callback, if any.
 	 */
 	public function __call($func, $args) {
+
+		if (isset($this[$func]) && is_callable($this[$func])) {
+			return call_user_func_array($this[$func], $args);
+		}
 
 		if (isset($this->attachment) && is_callable(array($this->attachment, $func))) {
 			return call_user_func_array(array($this->attachment, $func), $args);
 		}
-
-		if (! empty($this[$func]) && is_callable($this[$func])) {
-			return call_user_func_array($this[$func], $args);
-		}
 	}
-
+	
 }

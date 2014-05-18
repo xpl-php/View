@@ -13,10 +13,11 @@
 	],
 	"require": {
 		"php": ">=5.3",
-		"phpf/util": "dev-master"
+		"phpf/common": "dev-master",
+		"phpf/filesystem": "dev-master"
 	},
 	"autoload": {
-		"psr-0": {
+		"psr-4": {
 			"Phpf\\View\\": "src/"
 		}
 	},

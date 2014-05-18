@@ -2,7 +2,7 @@
 
 namespace Phpf\View\Parser;
 
-class Php extends AbstractParser {
+class Php implements ViewParserInterface {
 	
 	public function getType(){
 		return 'php';
