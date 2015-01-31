@@ -1,105 +1,182 @@
 <?php
 
-namespace Phpf\View;
+namespace xpl\View;
 
-class View extends Part
+class View extends \xpl\Common\Structure\BaseMap
 {
 
-	protected $attachment;
-
-	protected $object_context = true;
-
 	/**
-	 * Render the view, optionally in an object context.
-	 * 
-	 * Rendering in an object context allows for the use of "$this" in view files.
-	 * 
-	 * @return string Rendered view
+	 * @var string
 	 */
-	public function render() {
-		
-		// tell the manager we're rendering
-		$this->notify(); 
-		
-		if ($this->object_context && 'php' === $this->parser->getType()) {
-			extract($this->getAllData(), EXTR_REFS);
-			ob_start();
-			require $this->file;
-			return ob_get_clean();
-		} else {
-			return $this->parser->parse($this->file, $this->getAllData());
+	protected $template;
+	
+	/**
+	 * @var string
+	 */
+	protected $content;
+	
+	/**
+	 * Constructor.
+	 * 
+	 * @param string $template [Optional] Template file path.
+	 */
+	public function __construct($template = null) {
+		if (isset($template)) {
+			$this->setTemplate($template);
 		}
 	}
 	
 	/**
-	 * Gets a Part from view manager.
-	 *
-	 * @param string $part Name of part
-	 * @param string $type Type of file
-	 */
-	public function part($part, $type = 'php') {
-		return $this->manager->getPart($part, $type);
-	}
-
-	/**
-	 * Get/set whether object context should be used for rendering.
-	 *
-	 * @param null|bool $val Pass boolean to set value.
-	 * @return bool|$this If no argument given, returns value, otherwise $this.
-	 */
-	public function inObjectContext($val = null) {
-		if (! isset($val)) {
-			return $this->object_context;
-		}
-		$this->object_context = (bool)$val;
-		return $this;
-	}
-
-	/**
-	 * Attach an object to the view (only one).
-	 *
-	 * Attached object methods will be available through View.
-	 *
-	 * @param object $object The object to attach to view.
-	 * @return $this
-	 * @throws InvalidArgumentException if not passed an object.
-	 */
-	public function setAttachment($object) {
-		if (! is_object($object)) {
-			throw new \InvalidArgumentException('Must pass object to attach() - '.gettype($object).' given.');
-		}
-		$this->attachment = $object;
-		return $this;
-	}
-
-	/**
-	 * Get the attached object.
-	 *
-	 * @return object Attached object
-	 */
-	public function getAttachment() {
-		return $this->attachment;
-	}
-
-	/**
-	 * Either:
-	 *	- calls a method of attached object
-	 * or
-	 * 	- calls a callable property, e.g. closure
+	 * Sets the template file.
 	 * 
-	 * @param string $func Class method called.
-	 * @param array $args Array of arguments passed to method.
-	 * @return mixed Results of callback, if any.
+	 * @param string $template Template file path.
 	 */
-	public function __call($func, $args) {
-
-		if (isset($this[$func]) && is_callable($this[$func])) {
-			return call_user_func_array($this[$func], $args);
+	public function setTemplate($template) {
+		$this->template = $template;
+	}
+	
+	/**
+	 * Returns the template file path.
+	 * 
+	 * @return string The template file.
+	 */
+	public function getTemplate() {
+		return $this->template;
+	}
+	
+	/**
+	 * Sets the view content.
+	 * 
+	 * @param string|callable|object $content Content string, callable, or an object with '__toString' method.
+	 * @return $this
+	 */
+	public function setContent($content) {
+		
+		$filtered = $this->filterContent($content);
+		
+		if (false === $filtered) {
+			throw new \InvalidArgumentException("Non-scalar content.");
 		}
-
-		if (isset($this->attachment) && is_callable(array($this->attachment, $func))) {
-			return call_user_func_array(array($this->attachment, $func), $args);
+		
+		$this->content = $filtered;
+		
+		return $this;
+	}
+	
+	/**
+	 * Returns the content.
+	 * 
+	 * @param boolean $force_str Whether to force the content to a string. Default true.
+	 * @return string|mixed Content string (default), or possibly another type if $force_str is false.
+	 */
+	public function getContent($force_str = true) {
+		
+		if (empty($this->content)) {
+			return null;
 		}
+		
+		if (is_callable($this->content)) {
+			return $this->invoke($this->content);
+		}
+		
+		return $force_str ? (string)$this->content : $this->content;
+	}
+	
+	/**
+	 * Alias of getContent()
+	 */
+	public function content($force_str = true) {
+		return $this->getContent($force_str);
+	}
+	
+	/**
+	 * Returns the view as a string using its current template.
+	 * 
+	 * @return string
+	 */
+	public function __toString() {
+		return empty($this->template) ? '' : $this->includeFile($this->template);
+	}
+	
+	/**
+	 * Includes a file within the object's scope.
+	 * 
+	 * View data is extracted so as to be accessible as variables within the file.
+	 * 
+	 * @param string $__file File path.
+	 * @return string Captured content of file.
+	 */
+	public function includeFile($__file) {
+		
+		ob_start();
+		
+		extract($this->_data, EXTR_SKIP);
+		
+		include $__file;
+		
+		return ob_get_clean();
+	}
+	
+	/**
+	 * Attempts to forward a function call to a data item.
+	 * 
+	 * @param callable $func
+	 * @param array $args
+	 * @return mixed
+	 */
+	public function __call($func, array $args) {
+		
+		if (isset($this->_data[$func])) {
+				
+			if (is_callable($this->_data[$func])) {
+				return $this->invoke($this->_data[$func], $args);
+			}
+			
+			return $this->_data[$func];
+		}
+	}
+	
+	/**
+	 * Alias of 'import'
+	 */
+	public function addData($data) {
+		$this->import($data);
+	}
+	
+	/**
+	 * Invokes a callable and returns the result. 
+	 * 
+	 * If given a closure, it is bound to the object ($this is available).
+	 * 
+	 * @param callable $callable
+	 * @param array $args
+	 */
+	protected function invoke($callable, array $args = array()) {
+		
+		if ($callable instanceof \Closure) {
+			$callable = $callable->bindTo($this, get_class($this));
+		}
+		
+		return empty($args) ? $callable() : call_user_func_array($callable, $args);
+	}
+	
+	/**
+	 * Filters potential content and returns false if invalid.
+	 * 
+	 * @param mixed $content
+	 * @return mixed
+	 */
+	protected function filterContent($content) {
+			
+		if (is_scalar($content) || is_callable($content)) {
+			return $content;
+		}
+		
+		if (method_exists($content, '__toString')) {
+			return (string)$content;
+		}
+		
+		return false;
 	}
 	
 }
